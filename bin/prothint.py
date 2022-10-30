@@ -15,7 +15,6 @@ import time
 import shutil
 import tempfile
 
-
 VERSION = '2.6.0'
 workDir = ''
 binDir = ''
@@ -49,7 +48,7 @@ def standardRun(args):
     """
     seedGenes = args.geneSeeds
     if not seedGenes:
-        seedGenes = runGeneMarkES(args.pbs, args.fungus)
+        seedGenes = runAugustus(args.species)
     else:
         sys.stderr.write("[" + time.ctime() + "] Skipping GeneMark-ES, using "
                          "the supplied gene seeds file instead\n")
@@ -78,6 +77,21 @@ def standardRun(args):
     os.remove(proteins)
     sys.stderr.write("[" + time.ctime() + "] ProtHint finished.\n")
 
+def runAugustus(species):
+    if os.environ['AUGUSTUS_CONFIG_PATH']:
+        myenv = os.environ.copy()
+        if species:
+            species = '--species={}'.format(species)
+            f = open("augustus.gff", "w")
+            path_to_augustus = os.path.join(os.environ.get('AUGUSTUS_BIN_PATH'), 'augustus')
+            subprocess.run([path_to_augustus, species, genome], stdout=f, stderr=subprocess.PIPE, env=myenv)
+            f.close()
+            sys.stderr.write("[" + time.ctime() + "] Augustus finished.\n")
+            return os.path.abspath("augustus.gff")
+        else:
+            ('Please set species variable.')
+    else:
+        print('Please set AUGUSTUS_CONFIG_PATH variable.')
 
 def nextIteration(args):
     """Run a next iteration of ProtHint. ProtHint is only run for gene
@@ -530,12 +544,16 @@ def setEnvironment(args):
                  "For running ProtHint with ProSplign, use ProtHint release v2.4.0: "
                  "https://github.com/gatech-genemark/ProtHint/releases/tag/v2.4.0")
 
+    if not args.species and not args.geneSeeds:
+        sys.exit("error: please specify --species to run augustus or --geneSeeds to skip this step")
+
+
     if args.geneMarkGtf:
         if args.geneSeeds:
             sys.exit("error: please specify either --geneSeeds or\n"
                      "--geneMarkGtf. The arguments are identical,\n"
                      "--geneMarkGtf is supported for backwards compatibility.")
-        args.geneSeeds = args.geneMarkGtf
+        #args.geneSeeds = args.geneMarkGtf
 
     if args.geneSeeds:
         args.geneSeeds = checkFileAndMakeAbsolute(args.geneSeeds)
@@ -699,6 +717,9 @@ def parseCmd():
 
     parser.add_argument('--ProSplign',  default=False, action='store_true',
                         help=argparse.SUPPRESS)
+
+    parser.add_argument('--species', type=str, default=False,
+                        help='Identifier for species required by AUGUSTUS')
 
     return parser.parse_args()
 
